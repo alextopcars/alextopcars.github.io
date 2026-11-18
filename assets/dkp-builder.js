@@ -10,7 +10,7 @@
     ["01 · Место и дата", [["city","Город / населённый пункт"],["date","Дата договора"]]],
     ["02 · Продавец",person("s")],["03 · Покупатель",person("b")],
     ["04 · Автомобиль",[["vin","VIN"],["model","Марка, модель ТС"],["type","Наименование (тип ТС)"],["year","Год изготовления"],["engine","Модель, № двигателя"],["chassis","Шасси (рама) №"],["body","Кузов (кабина, прицеп) №"],["color","Цвет кузова"],["plate","Государственный регистрационный знак"],["epts","ЭПТС / ПТС (номер)"]]],
-    ["05 · Стоимость",[["price","Цена, рубли"],["kopecks","Копейки"],["words","Сумма прописью (рубли)"],["receipt","Полученная сумма (заполнять после расчёта)"]]]
+    ["05 · Стоимость",[["price","Цена, рубли"],["kopecks","Копейки"],["words","Сумма прописью (автоматически, можно изменить)"],["receipt","Полученная сумма (заполнять после расчёта)"]]]
   ];
   function create(tag,txt){const e=D.createElement(tag);if(txt!==undefined)e.textContent=txt;return e}
   for(const [title,defs] of sections){
@@ -24,6 +24,7 @@
       input.maxLength=key==="vin"?17:key==="year"?4:key==="kopecks"?2:240;
       if(key==="date")input.value=today;
       if(key==="price"||key==="kopecks")input.inputMode="numeric";
+      if(key==="words")input.placeholder="Заполняется автоматически";
       if(key==="receipt")input.placeholder="Оставьте пустым до расчёта";
       box.append(create("span",label),input);grid.appendChild(box);fields[key]=input;
     }
@@ -75,7 +76,33 @@
       }else{const p=create("p",content);if(kind==="title")p.className="doc-title";preview.appendChild(p)}
     }
   }
-  controls.addEventListener("input",()=>{status.textContent="";render()});
+  
+  function rublesInWords(raw){
+    const s=raw.replace(/\s/g,"");
+    if(!/^\d{1,12}$/.test(s))return "";
+    let n=Number(s);
+    if(n===0)return "ноль";
+    const units=["","один","два","три","четыре","пять","шесть","семь","восемь","девять"];
+    const teens=["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемнадцать","девятнадцать"];
+    const tens=["","","двадцать","тридцать","сорок","пятьдесят","шестьдесят","семьдесят","восемьдесят","девяносто"];
+    const hundreds=["","сто","двести","триста","четыреста","пятьсот","шестьсот","семьсот","восемьсот","девятьсот"];
+    const scales=[["","",""],["тысяча","тысячи","тысяч"],["миллион","миллиона","миллионов"],["миллиард","миллиарда","миллиардов"]];
+    const out=[];
+    for(let i=0;i<4;i++){
+      const k=n%1000;n=Math.floor(n/1000);if(!k)continue;
+      const last=k%10,t=k%100,part=[hundreds[Math.floor(k/100)]];
+      if(t>=10&&t<=19)part.push(teens[t-10]);else{part.push(tens[Math.floor(t/10)]);part.push(i===1&&last===1?"одна":i===1&&last===2?"две":units[last]);}
+      if(i)part.push(scales[i][t>=11&&t<=14?2:last===1?0:last>=2&&last<=4?1:2]);
+      out.unshift(part.filter(Boolean).join(" "));
+    }
+    return out.join(" ");
+  }
+  let wordsEdited=false;
+  controls.addEventListener("input",e=>{
+    if(e.target===fields.words)wordsEdited=!!val("words");
+    if(e.target===fields.price&&!wordsEdited)fields.words.value=rublesInWords(val("price"));
+    status.textContent="";render();
+  });
   function valid(){
     if(val("price")&&!/^\d{1,12}$/.test(val("price").replace(/\s/g,""))){status.textContent="Введите цену в рублях целым числом без запятых.";fields.price.focus();return false}
     if(val("kopecks")&&!/^\d{1,2}$/.test(val("kopecks"))){status.textContent="Копейки: от 0 до 99.";fields.kopecks.focus();return false}
@@ -121,6 +148,6 @@
     catch(e){status.textContent="Не удалось сформировать Word. Попробуйте другой браузер или печать."}
   });
   $("dkp-print").addEventListener("click",()=>{if(valid()){render();window.print()}});
-  $("dkp-clear").addEventListener("click",()=>{if(window.confirm("Очистить все введённые данные?")){for(const k of Object.keys(fields))fields[k].value=k==="date"?today:"";render();status.textContent="Данные очищены."}});
+  $("dkp-clear").addEventListener("click",()=>{if(window.confirm("Очистить все введённые данные?")){for(const k of Object.keys(fields))fields[k].value=k==="date"?today:"";wordsEdited=false;render();status.textContent="Данные очищены."}});
   render();
 })();
